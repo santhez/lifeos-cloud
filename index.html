@@ -11505,8 +11505,18 @@
     let currentOnboardingStep = 1;
 
     function openOnboardingWizard(force = false) {
-      if (!force && localStorage.getItem('lifeos_onboarded_v1') === 'true') {
-        return;
+      if (!force) {
+        if (localStorage.getItem('lifeos_onboarded_v1') === 'true') {
+          return;
+        }
+        if (currentAuthUser || initialIsAlexander) {
+          localStorage.setItem('lifeos_onboarded_v1', 'true');
+          return;
+        }
+        if (localStorage.getItem('user_bio_summary') || localStorage.getItem('lifeos_auth_token')) {
+          localStorage.setItem('lifeos_onboarded_v1', 'true');
+          return;
+        }
       }
 
       const wizard = document.getElementById('onboardingWizard');
@@ -11541,6 +11551,8 @@
     function closeOnboardingWizard() {
       const wizard = document.getElementById('onboardingWizard');
       if (wizard) wizard.style.display = 'none';
+      localStorage.setItem('lifeos_onboarded_v1', 'true');
+      if (typeof syncUserStateKey === 'function') syncUserStateKey('lifeos_onboarded_v1', true);
       if (activeSpeechRecognition) {
         try { activeSpeechRecognition.stop(); } catch (e) {}
       }
@@ -12173,6 +12185,8 @@
     }
 
     async function startAsDarina() {
+      localStorage.setItem('lifeos_welcome_shown', 'true');
+      localStorage.setItem('lifeos_onboarded_v1', 'true');
       const wModal = document.getElementById('welcomeModal');
       if (wModal) wModal.style.display = 'none';
       await quickLoginAs('darina', '123456');
@@ -12180,6 +12194,8 @@
     }
 
     function startRegistrationFromWelcome() {
+      localStorage.setItem('lifeos_welcome_shown', 'true');
+      localStorage.setItem('lifeos_onboarded_v1', 'true');
       const wModal = document.getElementById('welcomeModal');
       if (wModal) wModal.style.display = 'none';
       openAccountSettingsModal();
@@ -12187,6 +12203,8 @@
     }
 
     function startLoginFromWelcome() {
+      localStorage.setItem('lifeos_welcome_shown', 'true');
+      localStorage.setItem('lifeos_onboarded_v1', 'true');
       const wModal = document.getElementById('welcomeModal');
       if (wModal) wModal.style.display = 'none';
       openAccountSettingsModal();
@@ -12325,6 +12343,8 @@
         return;
       } else if (inviteUser === 'alexander' || inviteUser === 'admin' || isLocalHost) {
         // Always login as Alexander on LAN / Wi-Fi or when explicitly requested
+        localStorage.setItem('lifeos_welcome_shown', 'true');
+        localStorage.setItem('lifeos_onboarded_v1', 'true');
         await quickLoginAs('alexander', 'lifeos2026');
         try { window.history.replaceState({}, document.title, window.location.pathname + window.location.hash); } catch (e) {}
         return;
@@ -12337,6 +12357,8 @@
         try {
           currentAuthUser = JSON.parse(savedUserStr);
         } catch (e) {}
+        localStorage.setItem('lifeos_welcome_shown', 'true');
+        localStorage.setItem('lifeos_onboarded_v1', 'true');
         updateHeaderAuthUI();
         await loadAndHydrateUserState();
         return;
@@ -12348,7 +12370,10 @@
       await loadAndHydrateUserState();
       setTimeout(() => {
         const wModal = document.getElementById('welcomeModal');
-        if (wModal) wModal.style.display = 'flex';
+        if (wModal && localStorage.getItem('lifeos_welcome_shown') !== 'true') {
+          wModal.style.display = 'flex';
+          localStorage.setItem('lifeos_welcome_shown', 'true');
+        }
       }, 350);
     }
 
@@ -12687,7 +12712,7 @@
     loadAppSettings();
 
     // First-run automatic onboarding check
-    if (localStorage.getItem('lifeos_onboarded_v1') !== 'true') {
+    if (localStorage.getItem('lifeos_onboarded_v1') !== 'true' && !initialIsAlexander && !currentAuthUser) {
       setTimeout(() => openOnboardingWizard(false), 600);
     }
 
