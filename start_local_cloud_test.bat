@@ -1,8 +1,9 @@
 @echo off
-chcp 65001 > nul
 title LifeOS Cloud Server (Local Test)
 echo ============================================================
-echo   Запуск LifeOS Cloud на http://localhost:8080
+echo   Starting LifeOS Cloud Server on http://localhost:8080
+echo   Opening browser at http://localhost:8080 ...
 echo ============================================================
+start "" http://localhost:8080
 python server.py
 pause
