@@ -5957,17 +5957,17 @@
           "Спроектировал и напечатал на 3D-принтере кастомный светильник для дома",
           "Протестировал замену потолочных спотов на пластиковые",
           "Полный релиз автономной облачной LifeOS Cloud на Render с SQLite и шлюзом регистрации",
-          "Начал разработку темы для веб-карт",
+          "Начал разработку темы для OpenCart",
           "Прогулка на улице с Лией и котом, чай со сладостями",
-          "Договорились о поездке в Сколково (завтра в 11:00) и в Сочи за мотоциклом в воскресенье",
+          "Договорились об отправке посылки на Авито (10:00), выезде на Ахмет-скалу (11:00) и в Сочи за мотоциклом в воскресенье",
           "Просмотр глубокого трогательного фильма о любви и жизни — эмоциональный катарсис"
         ],
         soma: "Поздний подъем после тяжелого старта. Грусть и апатия встречены бережно: без самобичевания, через уединение и музыку. Теплая каша удержала стабильность ЖКТ. К вечеру — прилив витальной энергии от прогулки, ручного творчества и предвкушения дороги.",
-        synthesis: "День начался с иллюзии непродуктивности, но завершился осознанным присвоением колоссального объема сделанного: 3D-печать, веб-карты, релиз облачной платформы, теплота в отношениях и договоренности о Сколково и Сочи.",
+        synthesis: "День начался с иллюзии непродуктивности, но завершился осознанным присвоением колоссального объема сделанного: 3D-печать, тема OpenCart, релиз облачной платформы, теплота в отношениях и договоренности об Ахмет-скале и Сочи.",
         recommendations: [
-          "Завтра в 11:00 выезд в Сколково — плотно позавтракать в 10:00 перед дорогой.",
-          "Собрать базовые вещи и зарядки заранее с утра, чтобы не суетиться перед выездом.",
-          "После Сколково сохранить ресурс и выспаться перед воскресным выездом в Сочи за мотоциклом."
+          "Завтра в 10:00 отправить посылку на Авито и в 11:00 выезд на Ахмет-скалу — плотно позавтракать перед дорогой.",
+          "Выделить блок времени на разработку темы OpenCart и тестирование макета.",
+          "Вечером собрать вещи и документы перед воскресным выездом в Сочи за мотоциклом."
         ],
         calendarPlans: [
           "10:00: Питательный завтрак (фундамент ЖКТ перед выездом)",
@@ -9566,10 +9566,8 @@
 
       // Dynamic calendar events for tomorrow
       try {
-        const todayParts = getAppTodayISO().split('-');
-        const tomorrowD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
-        tomorrowD.setDate(tomorrowD.getDate() + 1);
-        const tomorrowISO = tomorrowD.toISOString().split('T')[0];
+        saveCalendarEventsToStorage();
+        const tomorrowISO = addDaysToISO(getAppTodayISO(), 1);
         const tomorrowPlans = (calendarEvents[tomorrowISO] || []).map(e => `${e.time}: ${e.title}`);
         if (tomorrowPlans.length > 0 && !fullPayload.includes('[ЗАДАЧИ И ПЛАНЫ НА ЗАВТРА:')) {
           fullPayload += `\n\n[ЗАДАЧИ И ПЛАНЫ НА ЗАВТРА (${tomorrowISO}): ${tomorrowPlans.join(' | ')}]`;
@@ -9661,10 +9659,8 @@
 
       // Dynamic calendar events for tomorrow
       try {
-        const todayParts = getAppTodayISO().split('-');
-        const tomorrowD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
-        tomorrowD.setDate(tomorrowD.getDate() + 1);
-        const tomorrowISO = tomorrowD.toISOString().split('T')[0];
+        saveCalendarEventsToStorage();
+        const tomorrowISO = addDaysToISO(getAppTodayISO(), 1);
         const tomorrowPlans = (calendarEvents[tomorrowISO] || []).map(e => `${e.time}: ${e.title}`);
         if (tomorrowPlans.length > 0 && !fullPayload.includes('[ЗАДАЧИ И ПЛАНЫ НА ЗАВТРА:')) {
           fullPayload += `\n\n[ЗАДАЧИ И ПЛАНЫ НА ЗАВТРА (${tomorrowISO}): ${tomorrowPlans.join(' | ')}]`;
