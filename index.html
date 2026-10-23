@@ -5501,14 +5501,14 @@
     <!-- Active Profile & SQLite Sync Pill -->
     <div class="mobile-nav-user-card" style="cursor: default;" title="Управление профилем и SQLite базой">
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-        <div style="display: flex; align-items: center; gap: 10px;" onclick="openAccountSettingsModal(); closeMobileDrawer();" style="cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 10px;" onclick="openAuthModal(); closeMobileDrawer();" style="cursor: pointer;">
           <span class="status-pip" style="background: var(--color-neon); width: 9px; height: 9px;" id="mobileDrawerUserPip"></span>
           <div>
             <div style="font-size: 13.5px; font-weight: 700; color: #fff;" id="mobileDrawerUserName">Профиль</div>
             <div style="font-size: 10px; color: var(--color-cyan);">SQLite multi-user sync</div>
           </div>
         </div>
-        <button class="dot-badge" onclick="openAccountSettingsModal(); closeMobileDrawer();" style="font-size: 10px; color: var(--color-cyan); border-color: rgba(6, 182, 212, 0.4); background: none; cursor: pointer;">Сменить ➔</button>
+        <button class="dot-badge" onclick="openAuthModal(); closeMobileDrawer();" style="font-size: 10px; color: var(--color-cyan); border-color: rgba(6, 182, 212, 0.4); background: none; cursor: pointer;">Сменить ➔</button>
       </div>
       <button id="mobileDrawerRestoreAdminBtn" onclick="restoreAlexanderSession(); closeMobileDrawer();" style="display: none; width: 100%; margin-top: 8px; padding: 6px 10px; font-size: 11px; font-weight: 700; background: rgba(234, 179, 8, 0.2); border: 1px solid rgba(234, 179, 8, 0.5); border-radius: 8px; color: #fbbf24; cursor: pointer;">
         ⚡ Вернуться в профиль Александра
@@ -12018,77 +12018,176 @@
       }).catch(e => console.warn('SQLite state sync error:', e));
     }
 
-    function openAccountSettingsModal() {
-      const modal = document.getElementById('authModal');
-      if (!modal) return;
-      const userNameEl = document.getElementById('authCurrentUserName');
-      if (userNameEl && currentAuthUser) {
-        userNameEl.innerText = `${currentAuthUser.display_name} (${currentAuthUser.role === 'admin' ? 'Администратор' : 'Пользователь'})`;
-      }
-      modal.style.display = 'flex';
+    
+    // ==========================================
+    // SQLITE MULTI-USER ENGINE & STATE SYNC (AUTONOMOUS CLOUD)
+    // ==========================================
+    let pendingAuthEmail = '';
+    let pendingAuthName = '';
+
+    function getAuthToken() {
+      return localStorage.getItem('lifeos_auth_token') || '';
     }
 
-    function closeAuthModal() {
-      const modal = document.getElementById('authModal');
-      if (modal) modal.style.display = 'none';
+    function syncUserStateKey(key, value) {
+      const token = getAuthToken();
+      if (!token) return;
+      fetch('/api/user_state', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ key: key, value: value })
+      }).catch(e => console.warn('SQLite state sync error:', e));
     }
 
-    function toggleAuthTab(tab) {
-      const tabLogin = document.getElementById('tabAuth_login');
-      const tabReg = document.getElementById('tabAuth_register');
-      const formLogin = document.getElementById('authLoginForm');
-      const formReg = document.getElementById('authRegisterForm');
+    // --- GATE WALL TAB & STEP SWITCHER ---
+    function switchGateTab(tab) {
+      const tabsNav = document.getElementById('gateTabsNav');
+      const tabReg = document.getElementById('gateTabRegister');
+      const tabLogin = document.getElementById('gateTabLogin');
+
+      const formReg = document.getElementById('gateRegisterForm');
+      const formOtp = document.getElementById('gateOtpForm');
+      const formLogin = document.getElementById('gateLoginForm');
+      const formForgot = document.getElementById('gateForgotForm');
+      const formReset = document.getElementById('gateResetPassForm');
+
+      const errBox = document.getElementById('gateAuthError');
+      const noticeBox = document.getElementById('gateAuthNotice');
+      if (errBox) errBox.style.display = 'none';
+      if (noticeBox) noticeBox.style.display = 'none';
+
+      // Hide all forms first
+      [formReg, formOtp, formLogin, formForgot, formReset].forEach(f => {
+        if (f) f.style.display = 'none';
+      });
 
       if (tab === 'login') {
+        if (tabsNav) tabsNav.style.display = 'flex';
         if (tabLogin) tabLogin.classList.add('active');
         if (tabReg) tabReg.classList.remove('active');
         if (formLogin) formLogin.style.display = 'block';
-        if (formReg) formReg.style.display = 'none';
-      } else {
-        if (tabLogin) tabLogin.classList.remove('active');
+      } else if (tab === 'register') {
+        if (tabsNav) tabsNav.style.display = 'flex';
         if (tabReg) tabReg.classList.add('active');
-        if (formLogin) formLogin.style.display = 'none';
+        if (tabLogin) tabLogin.classList.remove('active');
         if (formReg) formReg.style.display = 'block';
+      } else if (tab === 'otp') {
+        if (tabsNav) tabsNav.style.display = 'none';
+        if (formOtp) formOtp.style.display = 'block';
+        const targetEl = document.getElementById('gateOtpTargetEmail');
+        if (targetEl) targetEl.innerText = pendingAuthEmail;
+      } else if (tab === 'forgot') {
+        if (tabsNav) tabsNav.style.display = 'none';
+        if (formForgot) formForgot.style.display = 'block';
+      } else if (tab === 'reset') {
+        if (tabsNav) tabsNav.style.display = 'none';
+        if (formReset) formReset.style.display = 'block';
       }
     }
 
-    async function quickLoginAs(username, password) {
-      localStorage.removeItem('radar_projects_data');
-      localStorage.removeItem('kanban_ideas_data');
-      localStorage.removeItem('psy_conflicts_v2');
-      localStorage.removeItem('lifeos_meditation_history_v1');
-      const uInput = document.getElementById('authLoginUser');
-      const pInput = document.getElementById('authLoginPass');
-      if (uInput) uInput.value = username;
-      if (pInput) pInput.value = password;
-      await submitAuthLogin();
-    }
+    // --- STEP 1: REGISTRATION (SUBMITS EMAIL & SENDS OTP) ---
+    async function handleGateRegister() {
+      const name = (document.getElementById('gateRegName')?.value || '').trim();
+      const email = (document.getElementById('gateRegEmail')?.value || '').trim().toLowerCase();
+      const password = (document.getElementById('gateRegPass')?.value || '').trim();
+      const errBox = document.getElementById('gateAuthError');
+      const noticeBox = document.getElementById('gateAuthNotice');
+      const submitBtn = document.getElementById('gateRegSubmitBtn');
+      if (errBox) errBox.style.display = 'none';
 
-    async function submitAuthLogin() {
-      const username = (document.getElementById('authLoginUser')?.value || '').trim();
-      const password = (document.getElementById('authLoginPass')?.value || '').trim();
-
-      if (!username || !password) {
-        showToast('Пожалуйста, укажите логин и пароль', 'error');
+      if (!name || !email || !password) {
+        if (errBox) {
+          errBox.innerText = 'Пожалуйста, заполните все поля регистрации.';
+          errBox.style.display = 'block';
+        }
         return;
       }
 
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Отправляем код...</span>';
+      }
+
       try {
-        const res = await fetch('/api/auth/login', {
+        const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
+          body: JSON.stringify({ email, password, display_name: name })
         });
         const data = await res.json();
         if (!res.ok || data.error) {
-          showToast('Ошибка входа: ' + (data.error || 'Неверный логин или пароль'), 'error');
+          if (errBox) {
+            errBox.innerText = data.error || 'Ошибка при создании аккаунта';
+            errBox.style.display = 'block';
+          }
           return;
         }
 
-        // Clean cache from prior profile to prevent cross-contamination
+        pendingAuthEmail = email;
+        pendingAuthName = name;
+        switchGateTab('otp');
+        if (noticeBox) {
+          noticeBox.innerText = `Код подтверждения отправлен на ${email}. Введите его ниже:`;
+          noticeBox.style.display = 'block';
+        }
+
+      } catch (err) {
+        console.error('Registration error:', err);
+        if (errBox) {
+          errBox.innerText = 'Ошибка связи с сервером при отправке кода.';
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>✨ Получить код подтверждения ➔</span>';
+        }
+      }
+    }
+
+    // --- STEP 2: VERIFY OTP CODE & FINALIZE REGISTRATION ---
+    async function handleGateVerifyOtp() {
+      const code = (document.getElementById('gateOtpCode')?.value || '').trim();
+      const errBox = document.getElementById('gateAuthError');
+      const submitBtn = document.getElementById('gateOtpSubmitBtn');
+      if (errBox) errBox.style.display = 'none';
+
+      if (!code || code.length !== 6) {
+        if (errBox) {
+          errBox.innerText = 'Введите 6-значный цифровой код из письма.';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Проверка кода...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/auth/verify_code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingAuthEmail, code, action_type: 'register_verify' })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          if (errBox) {
+            errBox.innerText = data.error || 'Неверный код подтверждения';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+
+        // Clean any cached storage keys from other users
         localStorage.removeItem('radar_projects_data');
         localStorage.removeItem('kanban_ideas_data');
         localStorage.removeItem('psy_conflicts_v2');
+        localStorage.removeItem('calendar_events_v1');
         localStorage.removeItem('lifeos_meditation_history_v1');
 
         // Save session
@@ -12096,57 +12195,295 @@
         localStorage.setItem('lifeos_auth_user', JSON.stringify(data.user));
         currentAuthUser = data.user;
 
+        // Unlock page & hide Gate Wall
+        document.body.classList.remove('auth-locked');
+        const gate = document.getElementById('authGateWall');
+        if (gate) gate.style.display = 'none';
+
         updateHeaderAuthUI();
         await loadAndHydrateUserState();
 
-        closeAuthModal();
-        showToast(`👋 С возвращением, ${data.user.display_name}!`, 'success');
+        showToast(`✨ Добро пожаловать, ${data.user.display_name}! Почта подтверждена.`, 'success');
+
+        // Automatically launch interactive 9-step Spotlight tour for newcomer
+        setTimeout(() => {
+          if (typeof startSpotlightTour === 'function') {
+            startSpotlightTour(0);
+          }
+        }, 400);
+
       } catch (err) {
-        console.error('Login error:', err);
-        showToast('Ошибка связи с сервером при входе', 'error');
+        console.error('Verify error:', err);
+        if (errBox) {
+          errBox.innerText = 'Ошибка связи с сервером при проверке кода.';
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>🚀 Подтвердить и войти ➔</span>';
+        }
       }
     }
 
-    async function submitAuthRegister() {
-      const displayName = (document.getElementById('authRegName')?.value || '').trim();
-      const username = (document.getElementById('authRegUser')?.value || '').trim();
-      const password = (document.getElementById('authRegPass')?.value || '').trim();
+    // --- RESEND OTP CODE ---
+    async function resendVerificationOtp() {
+      if (!pendingAuthEmail) return;
+      const noticeBox = document.getElementById('gateAuthNotice');
+      try {
+        const res = await fetch('/api/auth/resend_code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingAuthEmail, action_type: 'register_verify' })
+        });
+        const data = await res.json();
+        if (noticeBox) {
+          noticeBox.innerText = data.message || 'Новый код отправлен на почту.';
+          noticeBox.style.display = 'block';
+        }
+      } catch (e) {
+        showToast('Не удалось повторно отправить код', 'error');
+      }
+    }
 
-      if (!displayName || !username || !password) {
-        showToast('Заполните все поля регистрации', 'error');
+    // --- FORGOT PASSWORD REQUEST ---
+    async function handleGateForgot() {
+      const email = (document.getElementById('gateForgotEmail')?.value || '').trim().toLowerCase();
+      const errBox = document.getElementById('gateAuthError');
+      const submitBtn = document.getElementById('gateForgotSubmitBtn');
+      if (errBox) errBox.style.display = 'none';
+
+      if (!email) {
+        if (errBox) {
+          errBox.innerText = 'Укажите ваш email адрес.';
+          errBox.style.display = 'block';
+        }
         return;
       }
 
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Отправляем код...</span>';
+      }
+
       try {
-        const res = await fetch('/api/auth/register', {
+        const res = await fetch('/api/auth/forgot_password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, display_name: displayName })
+          body: JSON.stringify({ email })
         });
         const data = await res.json();
         if (!res.ok || data.error) {
-          showToast('Ошибка регистрации: ' + (data.error || 'Не удалось создать профиль'), 'error');
+          if (errBox) {
+            errBox.innerText = data.error || 'Ошибка при запросе сброса пароля';
+            errBox.style.display = 'block';
+          }
           return;
         }
 
-        localStorage.removeItem('radar_projects_data');
-        localStorage.removeItem('kanban_ideas_data');
-        localStorage.removeItem('psy_conflicts_v2');
-        localStorage.removeItem('lifeos_meditation_history_v1');
+        pendingAuthEmail = email;
+        switchGateTab('reset');
+        const noticeBox = document.getElementById('gateAuthNotice');
+        if (noticeBox) {
+          noticeBox.innerText = `Код сброса пароля отправлен на ${email}`;
+          noticeBox.style.display = 'block';
+        }
 
+      } catch (err) {
+        console.error('Forgot password error:', err);
+        if (errBox) {
+          errBox.innerText = 'Ошибка связи с сервером.';
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Отправить код для сброса ➔</span>';
+        }
+      }
+    }
+
+    // --- RESET PASSWORD WITH CODE ---
+    async function handleGateResetPassword() {
+      const code = (document.getElementById('gateResetCode')?.value || '').trim();
+      const new_password = (document.getElementById('gateResetNewPass')?.value || '').trim();
+      const errBox = document.getElementById('gateAuthError');
+      const submitBtn = document.getElementById('gateResetSubmitBtn');
+      if (errBox) errBox.style.display = 'none';
+
+      if (!code || !new_password) {
+        if (errBox) {
+          errBox.innerText = 'Укажите код из письма и новый пароль.';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Сохранение...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/auth/reset_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: pendingAuthEmail, code, new_password })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          if (errBox) {
+            errBox.innerText = data.error || 'Ошибка при сбросе пароля';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+
+        // Save session
         localStorage.setItem('lifeos_auth_token', data.token);
         localStorage.setItem('lifeos_auth_user', JSON.stringify(data.user));
         currentAuthUser = data.user;
 
+        document.body.classList.remove('auth-locked');
+        const gate = document.getElementById('authGateWall');
+        if (gate) gate.style.display = 'none';
+
         updateHeaderAuthUI();
         await loadAndHydrateUserState();
 
-        closeAuthModal();
-        showToast(`🎉 Профиль ${data.user.display_name} успешно создан!`, 'success');
+        showToast('🎉 Пароль успешно изменен! Добро пожаловать.', 'success');
+
       } catch (err) {
-        console.error('Register error:', err);
-        showToast('Ошибка связи с сервером при регистрации', 'error');
+        console.error('Reset error:', err);
+        if (errBox) {
+          errBox.innerText = 'Ошибка связи с сервером при смене пароля.';
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Сохранить пароль и войти ➔</span>';
+        }
       }
+    }
+
+    // --- LOGIN ---
+    async function handleGateLogin() {
+      const login = (document.getElementById('gateLoginUser')?.value || '').trim();
+      const password = (document.getElementById('gateLoginPass')?.value || '').trim();
+      const errBox = document.getElementById('gateAuthError');
+      const submitBtn = document.getElementById('gateLoginSubmitBtn');
+      if (errBox) errBox.style.display = 'none';
+
+      if (!login || !password) {
+        if (errBox) {
+          errBox.innerText = 'Пожалуйста, укажите email/логин и пароль.';
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>Вход...</span>';
+      }
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login, password })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          if (errBox) {
+            errBox.innerText = data.error || 'Неверный email или пароль';
+            errBox.style.display = 'block';
+          }
+          return;
+        }
+
+        // Clean cached storage keys
+        localStorage.removeItem('radar_projects_data');
+        localStorage.removeItem('kanban_ideas_data');
+        localStorage.removeItem('psy_conflicts_v2');
+        localStorage.removeItem('calendar_events_v1');
+        localStorage.removeItem('lifeos_meditation_history_v1');
+
+        // Save session
+        localStorage.setItem('lifeos_auth_token', data.token);
+        localStorage.setItem('lifeos_auth_user', JSON.stringify(data.user));
+        currentAuthUser = data.user;
+
+        document.body.classList.remove('auth-locked');
+        const gate = document.getElementById('authGateWall');
+        if (gate) gate.style.display = 'none';
+
+        updateHeaderAuthUI();
+        await loadAndHydrateUserState();
+
+        showToast(`👋 С возвращением, ${data.user.display_name}!`, 'success');
+
+      } catch (err) {
+        console.error('Login error:', err);
+        if (errBox) {
+          errBox.innerText = 'Ошибка связи с сервером при входе.';
+          errBox.style.display = 'block';
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Войти в систему ➔</span>';
+        }
+      }
+    }
+
+    // --- USER PROFILE & AI SETTINGS MODAL ---
+    function openAccountSettingsModal() {
+      const modal = document.getElementById('accountSettingsModal');
+      if (!modal) return;
+      const titleEl = document.getElementById('accountUserNameDisplay');
+      const detailsEl = document.getElementById('accountDetailsDisplay');
+      const keyInput = document.getElementById('accountGeminiKeyInput');
+
+      if (currentAuthUser) {
+        if (titleEl) titleEl.innerText = currentAuthUser.display_name;
+        if (detailsEl) detailsEl.innerText = `${currentAuthUser.display_name} (${currentAuthUser.email || '@' + currentAuthUser.username})`;
+      } else {
+        if (titleEl) titleEl.innerText = 'Гостевой сеанс';
+        if (detailsEl) detailsEl.innerText = 'Не авторизован';
+      }
+
+      const savedKey = localStorage.getItem('lifeos_user_gemini_key') || '';
+      if (keyInput) keyInput.value = savedKey;
+
+      modal.style.display = 'flex';
+    }
+
+    function closeAccountSettingsModal() {
+      const modal = document.getElementById('accountSettingsModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    async function saveAccountGeminiKey() {
+      const keyInput = document.getElementById('accountGeminiKeyInput');
+      const key = (keyInput ? keyInput.value : '').trim();
+      if (!key) {
+        showToast('Введите API-ключ Google Gemini', 'error');
+        return;
+      }
+      localStorage.setItem('lifeos_user_gemini_key', key);
+      const token = getAuthToken();
+      if (token) {
+        try {
+          await fetch('/api/ai/save_key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ api_key: key })
+          });
+        } catch (e) {}
+      }
+      showToast('✨ Gemini API ключ успешно сохранен', 'success');
     }
 
     async function logoutCurrentUser() {
@@ -12165,110 +12502,52 @@
       localStorage.removeItem('radar_projects_data');
       localStorage.removeItem('kanban_ideas_data');
       localStorage.removeItem('psy_conflicts_v2');
+      localStorage.removeItem('calendar_events_v1');
       localStorage.removeItem('lifeos_meditation_history_v1');
       currentAuthUser = null;
-      showToast('Вы вышли из профиля. Переключение на гостевой сеанс.', 'info');
-      setTimeout(() => location.reload(), 600);
+
+      closeAccountSettingsModal();
+
+      document.body.classList.add('auth-locked');
+      const gate = document.getElementById('authGateWall');
+      if (gate) gate.style.display = 'flex';
+      switchGateTab('login');
+
+      updateHeaderAuthUI();
+      showToast('Вы вышли из профиля. Пожалуйста, выполните вход.', 'info');
     }
 
     function updateHeaderAuthUI() {
       const nameEl = document.getElementById('headerUserName');
-      const authUserEl = document.getElementById('authCurrentUserName');
       const mobileDrawerUserEl = document.getElementById('mobileDrawerUserName');
       const heroNameEl = document.getElementById('rpgHeroName');
       const heroBioEl = document.getElementById('rpgHeroBio');
       const heroTagEl = document.getElementById('rpgSportProfileTag');
       const rankBadgeEl = document.getElementById('playerRankBadge');
-      const restoreBtn = document.getElementById('headerRestoreAdminBtn');
-      const mRestoreBtn = document.getElementById('mobileDrawerRestoreAdminBtn');
-
-      const isAlex = currentAuthUser && currentAuthUser.id === 1;
-      const isLocal = ['localhost', '127.0.0.1', '192.168.0.178'].includes(window.location.hostname);
 
       if (currentAuthUser) {
-        if (nameEl) nameEl.innerText = currentAuthUser.display_name;
-        if (mobileDrawerUserEl) mobileDrawerUserEl.innerText = currentAuthUser.display_name;
-        if (authUserEl) authUserEl.innerText = `${currentAuthUser.display_name} (${isAlex ? 'Администратор' : 'Пользователь'})`;
-        if (heroNameEl) heroNameEl.innerText = isAlex ? 'АЛЕКСАНДР' : (currentAuthUser.display_name || 'ГОСТЬ').toUpperCase();
-        if (heroTagEl) heroTagEl.innerText = isAlex ? 'АТЛЕТ · КАЛИСТЕНИКА & T-REX 3' : 'ФИТНЕС · ТОНУС & ЗДОРОВЬЕ';
-        if (rankBadgeEl) rankBadgeEl.innerText = isAlex ? 'УРОВЕНЬ 3 · АТЛЕТ ВЫНОСЛИВОСТИ' : 'УРОВЕНЬ 1 · СТАРТ ПУТИ';
+        const name = currentAuthUser.display_name || 'Пользователь';
+        if (nameEl) nameEl.innerText = name;
+        if (mobileDrawerUserEl) mobileDrawerUserEl.innerText = name;
+        if (heroNameEl) heroNameEl.innerText = name.toUpperCase();
+        if (heroTagEl) heroTagEl.innerText = 'ПЕРСОНАЛЬНЫЙ РИТМ & СИНХРОНИЗАЦИЯ';
+        if (rankBadgeEl) rankBadgeEl.innerText = 'LIFE OS · ОБЛАЧНЫЙ ПРОФИЛЬ';
         if (heroBioEl) {
-          heroBioEl.innerText = isAlex
-            ? 'Спортивный профиль: подтягивания на турнике, отжимания, скакалка, фитнес-резина и бег. Программа динамически подстраивается под состояние тела.'
-            : 'Спортивный профиль: функциональные тренировки, баланс и тонус тела. Программа адаптируется под показатели восстановления.';
+          heroBioEl.innerText = 'Персональный профиль: планирование проектов, инкубатор идей, психологический баланс и медитации.';
         }
       } else {
-        if (nameEl) nameEl.innerText = 'Гость';
-        if (mobileDrawerUserEl) mobileDrawerUserEl.innerText = 'Гость';
-        if (authUserEl) authUserEl.innerText = 'Гостевой доступ';
+        if (nameEl) nameEl.innerText = 'Вход / Регистрация';
+        if (mobileDrawerUserEl) mobileDrawerUserEl.innerText = 'Вход / Регистрация';
         if (heroNameEl) heroNameEl.innerText = 'ГОСТЬ';
       }
-
-      // Safety banner when not logged in as Alexander
-      if (!isAlex) {
-        if (restoreBtn) restoreBtn.style.display = 'inline-flex';
-        if (mRestoreBtn) mRestoreBtn.style.display = 'block';
-        if (!document.getElementById('adminRestoreBanner')) {
-          const banner = document.createElement('div');
-          banner.id = 'adminRestoreBanner';
-          banner.style.cssText = 'position: sticky; top: 0; z-index: 10005; background: linear-gradient(90deg, #0d9488 0%, #06b6d4 100%); color: #fff; padding: 10px 16px; font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 16px rgba(0,0,0,0.5);';
-          banner.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span>👤 Вы находитесь в профиле «${currentAuthUser ? currentAuthUser.display_name : 'Гость'}».</span>
-            </div>
-            <button onclick="restoreAlexanderSession()" style="background: rgba(0,0,0,0.7); color: #00ff88; border: 1px solid rgba(0,255,136,0.4); padding: 6px 14px; border-radius: 9999px; font-weight: 800; cursor: pointer; font-size: 12px; margin-left: 12px; white-space: nowrap;">
-              👑 Войти как Александр
-            </button>
-          `;
-          document.body.prepend(banner);
-        }
-      } else {
-        if (restoreBtn) restoreBtn.style.display = 'none';
-        if (mRestoreBtn) mRestoreBtn.style.display = 'none';
-        const banner = document.getElementById('adminRestoreBanner');
-        if (banner) banner.remove();
-      }
-    }
-
-    async function restoreAlexanderSession() {
-      await quickLoginAs('alexander', 'lifeos2026');
-      const banner = document.getElementById('adminRestoreBanner');
-      if (banner) banner.remove();
-      showToast('👑 Вы вернулись в профиль Администратора (Александр)', 'success');
-    }
-
-    async function startAsDarina() {
-      localStorage.setItem('lifeos_welcome_shown', 'true');
-      localStorage.setItem('lifeos_onboarded_v1', 'true');
-      const wModal = document.getElementById('welcomeModal');
-      if (wModal) wModal.style.display = 'none';
-      await quickLoginAs('darina', '123456');
-      setTimeout(() => startSpotlightTour(0), 400);
-    }
-
-    function startRegistrationFromWelcome() {
-      localStorage.setItem('lifeos_welcome_shown', 'true');
-      localStorage.setItem('lifeos_onboarded_v1', 'true');
-      const wModal = document.getElementById('welcomeModal');
-      if (wModal) wModal.style.display = 'none';
-      openAccountSettingsModal();
-      toggleAuthTab('register');
-    }
-
-    function startLoginFromWelcome() {
-      localStorage.setItem('lifeos_welcome_shown', 'true');
-      localStorage.setItem('lifeos_onboarded_v1', 'true');
-      const wModal = document.getElementById('welcomeModal');
-      if (wModal) wModal.style.display = 'none';
-      openAccountSettingsModal();
-      toggleAuthTab('login');
     }
 
     async function loadAndHydrateUserState() {
       const token = getAuthToken();
+      if (!token) return;
       try {
         const res = await fetch('/api/user_state', {
-          headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+          headers: { 'Authorization': 'Bearer ' + token }
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -12278,53 +12557,35 @@
         }
 
         const state = data.state || {};
-        const isAlexander = (currentAuthUser && currentAuthUser.id === 1) ||
-                            (!currentAuthUser && ['localhost', '127.0.0.1', '192.168.0.178'].includes(window.location.hostname));
 
-        // Hydrate Radar Projects
-        if (isAlexander) {
-          if (state.radar_projects_data && Array.isArray(state.radar_projects_data) && state.radar_projects_data.length >= 5 && !state.radar_projects_data[0].id.startsWith('p_guest')) {
-            radarProjects = state.radar_projects_data;
-          } else {
-            radarProjects = JSON.parse(JSON.stringify(DEFAULT_RADAR_PROJECTS));
-            if (typeof syncUserStateKey === 'function') syncUserStateKey('radar_projects_data', radarProjects);
-          }
+        // Hydrate Radar Projects (Isolated per user)
+        if (state.radar_projects_data && Array.isArray(state.radar_projects_data) && state.radar_projects_data.length > 0) {
+          radarProjects = state.radar_projects_data;
         } else {
-          if (state.radar_projects_data && Array.isArray(state.radar_projects_data) && state.radar_projects_data.length > 0) {
-            radarProjects = state.radar_projects_data;
-          } else {
-            radarProjects = JSON.parse(JSON.stringify(GUEST_STARTER_PROJECTS));
-          }
+          radarProjects = (typeof GUEST_STARTER_PROJECTS !== 'undefined') 
+            ? JSON.parse(JSON.stringify(GUEST_STARTER_PROJECTS)) 
+            : JSON.parse(JSON.stringify(DEFAULT_RADAR_PROJECTS));
+          syncUserStateKey('radar_projects_data', radarProjects);
         }
         localStorage.setItem('radar_projects_data', JSON.stringify(radarProjects));
 
-        // Hydrate Kanban Ideas
-        if (isAlexander) {
-          if (state.kanban_ideas_data && Array.isArray(state.kanban_ideas_data) && state.kanban_ideas_data.length >= 3 && !String(state.kanban_ideas_data[0].id).startsWith('idea_guest')) {
-            kanbanIdeas = state.kanban_ideas_data;
-          } else {
-            kanbanIdeas = JSON.parse(JSON.stringify(DEFAULT_KANBAN_IDEAS));
-            if (typeof syncUserStateKey === 'function') syncUserStateKey('kanban_ideas_data', kanbanIdeas);
-          }
+        // Hydrate Kanban Ideas (Isolated per user)
+        if (state.kanban_ideas_data && Array.isArray(state.kanban_ideas_data) && state.kanban_ideas_data.length > 0) {
+          kanbanIdeas = state.kanban_ideas_data;
         } else {
-          if (state.kanban_ideas_data && Array.isArray(state.kanban_ideas_data) && state.kanban_ideas_data.length > 0) {
-            kanbanIdeas = state.kanban_ideas_data;
-          } else {
-            kanbanIdeas = JSON.parse(JSON.stringify(GUEST_STARTER_IDEAS));
-          }
+          kanbanIdeas = (typeof GUEST_STARTER_IDEAS !== 'undefined')
+            ? JSON.parse(JSON.stringify(GUEST_STARTER_IDEAS))
+            : JSON.parse(JSON.stringify(DEFAULT_KANBAN_IDEAS));
+          syncUserStateKey('kanban_ideas_data', kanbanIdeas);
         }
         localStorage.setItem('kanban_ideas_data', JSON.stringify(kanbanIdeas));
 
-        // Hydrate Psy Conflicts
-        if (isAlexander) {
-          if (state.psy_conflicts_v2 && Array.isArray(state.psy_conflicts_v2) && state.psy_conflicts_v2.length > 0) {
-            psyConflicts = state.psy_conflicts_v2;
-          } else {
-            psyConflicts = (typeof ALEXANDER_PSY_CONFLICTS !== 'undefined') ? JSON.parse(JSON.stringify(ALEXANDER_PSY_CONFLICTS)) : [];
-            if (typeof syncUserStateKey === 'function') syncUserStateKey('psy_conflicts_v2', psyConflicts);
-          }
+        // Hydrate Psy Conflicts (Isolated per user)
+        if (state.psy_conflicts_v2 && Array.isArray(state.psy_conflicts_v2) && state.psy_conflicts_v2.length > 0) {
+          psyConflicts = state.psy_conflicts_v2;
         } else {
-          psyConflicts = (state.psy_conflicts_v2 && Array.isArray(state.psy_conflicts_v2)) ? state.psy_conflicts_v2 : [];
+          psyConflicts = (typeof DEFAULT_PSY_CONFLICTS !== 'undefined') ? JSON.parse(JSON.stringify(DEFAULT_PSY_CONFLICTS)) : [];
+          if (psyConflicts.length > 0) syncUserStateKey('psy_conflicts_v2', psyConflicts);
         }
         localStorage.setItem('psy_conflicts_v2', JSON.stringify(psyConflicts));
 
@@ -12335,42 +12596,38 @@
           localStorage.setItem('lifeos_meditation_history_v1', JSON.stringify([]));
         }
 
-        // Hydrate Calendar Events (Isolated Profiles)
-        const calKey = isAlexander ? 'calendar_events_v1' : 'calendar_events_guest_v1';
-        if (state[calKey] && typeof state[calKey] === 'object' && Object.keys(state[calKey]).length > 0) {
-          calendarEvents = state[calKey];
+        // Hydrate Calendar Events
+        if (state.calendar_events_v1 && typeof state.calendar_events_v1 === 'object' && Object.keys(state.calendar_events_v1).length > 0) {
+          calendarEvents = state.calendar_events_v1;
         } else {
-          calendarEvents = isAlexander 
-            ? JSON.parse(JSON.stringify(ALEXANDER_CALENDAR_EVENTS)) 
-            : JSON.parse(JSON.stringify(GUEST_CALENDAR_EVENTS));
-          if (isAlexander && typeof syncUserStateKey === 'function') syncUserStateKey('calendar_events_v1', calendarEvents);
+          calendarEvents = (typeof GUEST_CALENDAR_EVENTS !== 'undefined') 
+            ? JSON.parse(JSON.stringify(GUEST_CALENDAR_EVENTS)) 
+            : {};
+          if (Object.keys(calendarEvents).length > 0) syncUserStateKey('calendar_events_v1', calendarEvents);
         }
-        localStorage.setItem(calKey, JSON.stringify(calendarEvents));
+        localStorage.setItem('calendar_events_v1', JSON.stringify(calendarEvents));
 
-        // Hydrate History Data (Daily debrief timeline)
-        if (!isAlexander) {
-          historyData = JSON.parse(JSON.stringify(GUEST_HISTORY_DATA));
-          currentDayIdx = 0;
-          const wCard = document.getElementById('workoutCard');
-          if (wCard) wCard.style.display = 'none';
-          if (typeof buildCalendarDaysNav === 'function') buildCalendarDaysNav();
-          if (typeof selectDay === 'function') selectDay(0);
+        // Hydrate History Data
+        if (state.history_data_v1 && Array.isArray(state.history_data_v1) && state.history_data_v1.length > 0) {
+          historyData = state.history_data_v1;
         } else {
-          historyData = ALEXANDER_HISTORY_DATA;
-          ensureTodayInHistory();
-          if (typeof buildCalendarDaysNav === 'function') buildCalendarDaysNav();
-          if (typeof selectDay === 'function') selectDay(currentDayIdx);
+          historyData = (typeof GUEST_HISTORY_DATA !== 'undefined') 
+            ? JSON.parse(JSON.stringify(GUEST_HISTORY_DATA)) 
+            : JSON.parse(JSON.stringify(DEFAULT_HISTORY_DATA));
         }
+        currentDayIdx = 0;
 
         updateHeaderAuthUI();
 
         // Re-render active views
-        renderKanban();
-        renderRadar(currentRadarFilter || 'all');
+        if (typeof renderKanban === 'function') renderKanban();
+        if (typeof renderRadar === 'function') renderRadar(currentRadarFilter || 'all');
         if (typeof renderConflicts === 'function') renderConflicts(currentPsyFilter || 'active');
         if (typeof renderPsyFeelingsSummary === 'function') renderPsyFeelingsSummary();
         if (typeof renderMeditationTab === 'function') renderMeditationTab();
         if (typeof renderCalendarTimeline === 'function') renderCalendarTimeline();
+        if (typeof buildCalendarDaysNav === 'function') buildCalendarDaysNav();
+        if (typeof selectDay === 'function') selectDay(0);
       } catch (err) {
         console.warn('Could not hydrate user state:', err);
       }
@@ -12384,50 +12641,77 @@
         localStorage.removeItem('radar_projects_data');
         localStorage.removeItem('kanban_ideas_data');
         localStorage.removeItem('psy_conflicts_v2');
+        localStorage.removeItem('calendar_events_v1');
         localStorage.removeItem('lifeos_meditation_history_v1');
-      }
-      const inviteUser = (urlParams.get('user') || urlParams.get('invite') || '').toLowerCase().trim();
-      const isLocalHost = ['localhost', '127.0.0.1', '192.168.0.178'].includes(window.location.hostname) ||
-                          window.location.hostname.startsWith('192.168.') || window.location.hostname.startsWith('10.');
-
-      if (inviteUser === 'darina') {
-        await quickLoginAs('darina', '123456');
-        try { window.history.replaceState({}, document.title, window.location.pathname + window.location.hash); } catch (e) {}
-        return;
-      } else if (inviteUser === 'alexander' || inviteUser === 'admin' || isLocalHost) {
-        // Always login as Alexander on LAN / Wi-Fi or when explicitly requested
-        localStorage.setItem('lifeos_welcome_shown', 'true');
-        localStorage.setItem('lifeos_onboarded_v1', 'true');
-        await quickLoginAs('alexander', 'lifeos2026');
-        try { window.history.replaceState({}, document.title, window.location.pathname + window.location.hash); } catch (e) {}
-        return;
+        localStorage.removeItem('lifeos_tour_done_v2');
       }
 
-      // Check saved session
-      const savedUserStr = localStorage.getItem('lifeos_auth_user');
       const token = getAuthToken();
-      if (savedUserStr && token) {
-        try {
-          currentAuthUser = JSON.parse(savedUserStr);
-        } catch (e) {}
-        localStorage.setItem('lifeos_welcome_shown', 'true');
-        localStorage.setItem('lifeos_onboarded_v1', 'true');
+      const gate = document.getElementById('authGateWall');
+
+      if (!token) {
+        // No session: Always lock screen with Auth Gate Wall
+        document.body.classList.add('auth-locked');
+        if (gate) gate.style.display = 'flex';
         updateHeaderAuthUI();
-        await loadAndHydrateUserState();
         return;
       }
 
-      // External access (Mobile / Tunnel) without session:
-      currentAuthUser = { id: 2, username: 'darina', display_name: 'Дарина', role: 'user' };
-      updateHeaderAuthUI();
-      await loadAndHydrateUserState();
-      setTimeout(() => {
-        const wModal = document.getElementById('welcomeModal');
-        if (wModal && localStorage.getItem('lifeos_welcome_shown') !== 'true') {
-          wModal.style.display = 'flex';
-          localStorage.setItem('lifeos_welcome_shown', 'true');
+      // Check if session is valid on backend
+      try {
+        const res = await fetch('/api/user_state', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+          // Token expired or invalid
+          localStorage.removeItem('lifeos_auth_token');
+          localStorage.removeItem('lifeos_auth_user');
+          currentAuthUser = null;
+          document.body.classList.add('auth-locked');
+          if (gate) gate.style.display = 'flex';
+          updateHeaderAuthUI();
+          return;
         }
-      }, 350);
+
+        const data = await res.json();
+        if (data.user) {
+          currentAuthUser = data.user;
+          localStorage.setItem('lifeos_auth_user', JSON.stringify(data.user));
+          document.body.classList.remove('auth-locked');
+          if (gate) gate.style.display = 'none';
+          updateHeaderAuthUI();
+          await loadAndHydrateUserState();
+
+          // If user hasn't completed tour yet, start it
+          if (localStorage.getItem('lifeos_tour_done_v2') !== 'true') {
+            setTimeout(() => {
+              if (typeof startSpotlightTour === 'function') {
+                startSpotlightTour(0);
+              }
+            }, 500);
+          }
+        } else {
+          document.body.classList.add('auth-locked');
+          if (gate) gate.style.display = 'flex';
+        }
+      } catch (e) {
+        console.warn('Network issue during session check:', e);
+        const savedUserStr = localStorage.getItem('lifeos_auth_user');
+        if (savedUserStr) {
+          try {
+            currentAuthUser = JSON.parse(savedUserStr);
+            document.body.classList.remove('auth-locked');
+            if (gate) gate.style.display = 'none';
+            updateHeaderAuthUI();
+          } catch (err) {
+            document.body.classList.add('auth-locked');
+            if (gate) gate.style.display = 'flex';
+          }
+        } else {
+          document.body.classList.add('auth-locked');
+          if (gate) gate.style.display = 'flex';
+        }
+      }
     }
 
     // ==========================================
