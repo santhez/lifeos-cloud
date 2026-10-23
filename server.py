@@ -419,9 +419,21 @@ class LifeOSCloudHandler(SimpleHTTPRequestHandler):
 
 def run():
     server_address = ('0.0.0.0', PORT)
-    httpd = ThreadingHTTPServer(server_address, LifeOSCloudHandler)
+    try:
+        httpd = ThreadingHTTPServer(server_address, LifeOSCloudHandler)
+    except OSError as e:
+        if getattr(e, 'winerror', None) == 10048 or "10048" in str(e) or "already in use" in str(e).lower():
+            print(f"============================================================", flush=True)
+            print(f"[LifeOS Cloud] Порт {PORT} уже активен (сервер уже работает в фоне)!", flush=True)
+            print(f"[LifeOS Cloud] Приложение готово и доступно: http://localhost:{PORT}", flush=True)
+            print(f"============================================================", flush=True)
+            return
+        raise
+
+    print(f"============================================================", flush=True)
     print(f"[LifeOS Cloud] Server started on http://0.0.0.0:{PORT}", flush=True)
     print(f"[LifeOS Cloud] Serving static files from: {STATIC_DIR}", flush=True)
+    print(f"============================================================", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
