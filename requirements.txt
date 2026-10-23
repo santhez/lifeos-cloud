@@ -1,0 +1,2 @@
+# LifeOS Cloud is powered by Python 3 standard library
+# Zero mandatory external packages required for ultra-fast startup and deployment!
