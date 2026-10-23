@@ -12130,7 +12130,13 @@
         pendingAuthName = name;
         switchGateTab('otp');
         if (noticeBox) {
-          noticeBox.innerText = `Код подтверждения отправлен на ${email}. Введите его ниже:`;
+          if (data.dev_code) {
+            noticeBox.innerHTML = `⚙️ <b>Почтовый сервер еще не настроен в Render</b>.<br>Ваш код для входа: <b style="color:#00ff88; font-size:17px; letter-spacing:3px;">${data.dev_code}</b>`;
+            const otpInp = document.getElementById('gateOtpCode');
+            if (otpInp) otpInp.value = data.dev_code;
+          } else {
+            noticeBox.innerText = `Код подтверждения отправлен на ${email}. Введите его ниже:`;
+          }
           noticeBox.style.display = 'block';
         }
 
@@ -12238,7 +12244,13 @@
         });
         const data = await res.json();
         if (noticeBox) {
-          noticeBox.innerText = data.message || 'Новый код отправлен на почту.';
+          if (data.dev_code) {
+            noticeBox.innerHTML = `⚙️ Код для теста: <b style="color:#00ff88; font-size:16px;">${data.dev_code}</b>`;
+            const otpInp = document.getElementById('gateOtpCode');
+            if (otpInp) otpInp.value = data.dev_code;
+          } else {
+            noticeBox.innerText = data.message || 'Новый код отправлен на почту.';
+          }
           noticeBox.style.display = 'block';
         }
       } catch (e) {
@@ -12285,7 +12297,13 @@
         switchGateTab('reset');
         const noticeBox = document.getElementById('gateAuthNotice');
         if (noticeBox) {
-          noticeBox.innerText = `Код сброса пароля отправлен на ${email}`;
+          if (data.dev_code) {
+            noticeBox.innerHTML = `⚙️ Код сброса для теста: <b style="color:#00ff88; font-size:16px;">${data.dev_code}</b>`;
+            const rCodeInp = document.getElementById('gateResetCode');
+            if (rCodeInp) rCodeInp.value = data.dev_code;
+          } else {
+            noticeBox.innerText = `Код сброса пароля отправлен на ${email}`;
+          }
           noticeBox.style.display = 'block';
         }
 
