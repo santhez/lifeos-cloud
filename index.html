@@ -4981,8 +4981,8 @@
   </div>
 
   <!-- FULL SCREEN SPATIAL AUTH GATE WALL (UNSKIPPABLE UNTIL AUTHENTICATED) -->
-  <div id="authGateWall" style="display: flex; position: fixed; inset: 0; z-index: 999999; backdrop-filter: blur(55px); background: radial-gradient(circle at 50% 30%, rgba(13, 30, 41, 0.96) 0%, rgba(5, 10, 15, 0.98) 100%); align-items: center; justify-content: center; padding: 20px;">
-    <div class="drawer-card" style="max-width: 480px; width: 100%; padding: 34px 28px; text-align: center; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 24px 70px rgba(0,0,0,0.9), 0 0 45px rgba(0,255,136,0.18);">
+  <div id="authGateWall" style="display: flex; position: fixed; inset: 0; z-index: 999999; backdrop-filter: blur(55px); background: radial-gradient(circle at 50% 30%, rgba(13, 30, 41, 0.96) 0%, rgba(5, 10, 15, 0.98) 100%); align-items: center; justify-content: center; padding: 20px; overflow-y: auto;">
+    <div class="drawer-card" style="max-width: 480px; width: 100%; padding: 34px 28px; text-align: center; border: 1px solid rgba(0, 255, 136, 0.4); box-shadow: 0 24px 70px rgba(0,0,0,0.9), 0 0 45px rgba(0,255,136,0.18); margin: auto;">
       
       <!-- Brand Icon & Header -->
       <div style="width: 62px; height: 62px; margin: 0 auto 16px auto; border-radius: 20px; background: rgba(0,255,136,0.12); border: 1px solid rgba(0,255,136,0.4); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 25px rgba(0,255,136,0.25);">
@@ -4992,55 +4992,108 @@
         </svg>
       </div>
       <span class="dot-matrix" style="font-size: 11px; color: var(--color-neon); font-weight: 800; letter-spacing: 2px;">LIFE OS · CLOUD</span>
-      <h2 style="font-size: 24px; color: #fff; margin: 6px 0 6px 0; font-weight: 800;">Персональный ритм</h2>
-      <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 22px;">
+      <h2 style="font-size: 24px; color: #fff; margin: 6px 0 6px 0; font-weight: 800;" id="gateTitle">Персональный ритм</h2>
+      <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 22px;" id="gateSubtitle">
         Изолированное пространство: пульс дня, инкубатор идей, радар проектов, дыхательные практики и вечерний разбор.
       </p>
 
-      <!-- Auth Switcher Tabs -->
-      <div style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+      <!-- Auth Switcher Tabs (visible on register & login) -->
+      <div id="gateTabsNav" style="display: flex; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.4); padding: 4px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
         <button id="gateTabRegister" class="freq-pill-btn active" onclick="switchGateTab('register')" style="flex: 1; padding: 8px 12px; font-size: 12.5px; border-radius: 8px; font-weight: 700;">Регистрация</button>
         <button id="gateTabLogin" class="freq-pill-btn" onclick="switchGateTab('login')" style="flex: 1; padding: 8px 12px; font-size: 12.5px; border-radius: 8px; font-weight: 700;">Вход</button>
       </div>
 
       <!-- Error / Alert Banner -->
       <div id="gateAuthError" style="display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); color: #fda4af; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-bottom: 16px; text-align: left;"></div>
+      <!-- Success / Info Banner -->
+      <div id="gateAuthNotice" style="display: none; background: rgba(0, 255, 136, 0.12); border: 1px solid rgba(0, 255, 136, 0.4); color: #00ff88; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; margin-bottom: 16px; text-align: left;"></div>
 
-      <!-- Registration Form -->
+      <!-- 1. Registration Form -->
       <form id="gateRegisterForm" onsubmit="event.preventDefault(); handleGateRegister();" style="text-align: left;">
         <div style="margin-bottom: 12px;">
           <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ВАШЕ ИМЯ:</label>
           <input type="text" id="gateRegName" class="input-field" placeholder="например, Дарина или Михаил" required style="margin: 0; width: 100%;">
         </div>
         <div style="margin-bottom: 12px;">
-          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ЛОГИН (ЛАТИНИЦЕЙ):</label>
-          <input type="text" id="gateRegUser" class="input-field" placeholder="например, darina" required style="margin: 0; width: 100%;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ВАШ EMAIL:</label>
+          <input type="email" id="gateRegEmail" class="input-field" placeholder="name@example.com" required style="margin: 0; width: 100%;">
         </div>
         <div style="margin-bottom: 18px;">
           <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ПАРОЛЬ:</label>
           <input type="password" id="gateRegPass" class="input-field" placeholder="минимум 4 символа" required style="margin: 0; width: 100%;">
         </div>
-        <button type="submit" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,255,136,0.25);">
-          <span>✨ Создать аккаунт и начать тур ➔</span>
+        <button type="submit" id="gateRegSubmitBtn" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,255,136,0.25);">
+          <span>✨ Получить код подтверждения ➔</span>
         </button>
         <p style="margin-top: 12px; font-size: 11.5px; color: var(--text-dim); text-align: center; line-height: 1.45;">
-          💡 Сразу после регистрации запустится интерактивный 9-шаговый тур по всем разделам платформы.
+          📬 На указанную почту поступит 6-значный код для активации аккаунта.
         </p>
       </form>
 
-      <!-- Login Form -->
+      <!-- 2. OTP Code Verification Form -->
+      <form id="gateOtpForm" onsubmit="event.preventDefault(); handleGateVerifyOtp();" style="display: none; text-align: left;">
+        <div style="margin-bottom: 18px; text-align: center;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--color-neon); display: block; margin-bottom: 8px;">ВВЕДИТЕ 6-ЗНАЧНЫЙ КОД ИЗ ПИСЬМА:</label>
+          <input type="text" id="gateOtpCode" class="input-field" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" required style="margin: 0 auto; width: 220px; text-align: center; font-size: 26px; font-weight: 800; letter-spacing: 8px; font-family: monospace; color: var(--color-neon); border-color: rgba(0,255,136,0.5);">
+          <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 8px;">Код отправлен на <b id="gateOtpTargetEmail" style="color: #fff;"></b></div>
+        </div>
+        <button type="submit" id="gateOtpSubmitBtn" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,255,136,0.25);">
+          <span>🚀 Подтвердить и войти ➔</span>
+        </button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 12px;">
+          <a href="#" onclick="event.preventDefault(); resendVerificationOtp();" style="color: var(--color-cyan); text-decoration: none;">🔄 Отправить код повторно</a>
+          <a href="#" onclick="event.preventDefault(); switchGateTab('register');" style="color: var(--text-dim); text-decoration: none;">← Изменить email</a>
+        </div>
+      </form>
+
+      <!-- 3. Login Form -->
       <form id="gateLoginForm" onsubmit="event.preventDefault(); handleGateLogin();" style="display: none; text-align: left;">
         <div style="margin-bottom: 12px;">
-          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ЛОГИН:</label>
-          <input type="text" id="gateLoginUser" class="input-field" placeholder="ваш логин" required style="margin: 0; width: 100%;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">EMAIL ИЛИ ЛОГИН:</label>
+          <input type="text" id="gateLoginUser" class="input-field" placeholder="ваш email или логин" required style="margin: 0; width: 100%;">
         </div>
-        <div style="margin-bottom: 18px;">
+        <div style="margin-bottom: 10px;">
           <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">ПАРОЛЬ:</label>
           <input type="password" id="gateLoginPass" class="input-field" placeholder="••••••••" required style="margin: 0; width: 100%;">
         </div>
-        <button type="submit" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,255,136,0.25);">
+        <div style="text-align: right; margin-bottom: 16px;">
+          <a href="#" onclick="event.preventDefault(); switchGateTab('forgot');" style="font-size: 11.5px; color: var(--color-cyan); text-decoration: none;">Забыли пароль?</a>
+        </div>
+        <button type="submit" id="gateLoginSubmitBtn" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800; box-shadow: 0 4px 20px rgba(0,255,136,0.25);">
           <span>Войти в систему ➔</span>
         </button>
+      </form>
+
+      <!-- 4. Forgot Password Form -->
+      <form id="gateForgotForm" onsubmit="event.preventDefault(); handleGateForgot();" style="display: none; text-align: left;">
+        <div style="margin-bottom: 18px;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">УКАЖИТЕ ВАШ EMAIL:</label>
+          <input type="email" id="gateForgotEmail" class="input-field" placeholder="name@example.com" required style="margin: 0; width: 100%;">
+        </div>
+        <button type="submit" id="gateForgotSubmitBtn" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800;">
+          <span>Отправить код для сброса ➔</span>
+        </button>
+        <div style="text-align: center; margin-top: 16px;">
+          <a href="#" onclick="event.preventDefault(); switchGateTab('login');" style="font-size: 12px; color: var(--text-muted); text-decoration: none;">← Вернуться ко входу</a>
+        </div>
+      </form>
+
+      <!-- 5. Reset Password Form -->
+      <form id="gateResetPassForm" onsubmit="event.preventDefault(); handleGateResetPassword();" style="display: none; text-align: left;">
+        <div style="margin-bottom: 14px; text-align: center;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--color-cyan); display: block; margin-bottom: 6px;">КОД ИЗ ПИСЬМА ДЛЯ СБРОСА:</label>
+          <input type="text" id="gateResetCode" class="input-field" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" required style="margin: 0 auto; width: 220px; text-align: center; font-size: 24px; font-weight: 800; letter-spacing: 6px; font-family: monospace; color: var(--color-cyan); border-color: rgba(6,182,212,0.5);">
+        </div>
+        <div style="margin-bottom: 18px;">
+          <label class="dot-matrix" style="font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px;">НОВЫЙ ПАРОЛЬ:</label>
+          <input type="password" id="gateResetNewPass" class="input-field" placeholder="минимум 4 символа" required style="margin: 0; width: 100%;">
+        </div>
+        <button type="submit" id="gateResetSubmitBtn" class="btn-luminous-jade" style="width: 100%; justify-content: center; padding: 13px 20px; font-size: 14px; font-weight: 800;">
+          <span>Сохранить пароль и войти ➔</span>
+        </button>
+        <div style="text-align: center; margin-top: 16px;">
+          <a href="#" onclick="event.preventDefault(); switchGateTab('login');" style="font-size: 12px; color: var(--text-muted); text-decoration: none;">← Отмена</a>
+        </div>
       </form>
 
     </div>
