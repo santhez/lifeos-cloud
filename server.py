@@ -178,14 +178,19 @@ class LifeOSCloudHandler(SimpleHTTPRequestHandler):
 
                 user = db.create_user_with_email(email, password, display_name)
                 code = db.create_otp_code(email, 'register_verify')
-                mailer.send_verification_email(email, code, display_name)
+                mail_res = mailer.send_verification_email(email, code, display_name)
 
-                self.send_json({
+                resp_data = {
                     "success": True, 
                     "step": "verify_required", 
                     "email": email,
                     "message": "Код подтверждения отправлен на ваш email"
-                })
+                }
+                if mail_res.get("provider") == "dev_mode":
+                    resp_data["dev_code"] = code
+                    resp_data["message"] = f"Код для теста: {code} (Почтовый сервер еще не подключен в Render)"
+
+                self.send_json(resp_data)
             except ValueError as ve:
                 self.send_json({"error": str(ve)}, status=400)
             except Exception as e:
@@ -237,11 +242,15 @@ class LifeOSCloudHandler(SimpleHTTPRequestHandler):
 
                 code = db.create_otp_code(email, action_type)
                 if action_type == 'register_verify':
-                    mailer.send_verification_email(email, code, user['display_name'])
+                    mail_res = mailer.send_verification_email(email, code, user['display_name'])
                 else:
-                    mailer.send_password_reset_email(email, code)
+                    mail_res = mailer.send_password_reset_email(email, code)
 
-                self.send_json({"success": True, "message": "Новый код отправлен на почту"})
+                resp_data = {"success": True, "message": "Новый код отправлен на почту"}
+                if mail_res.get("provider") == "dev_mode":
+                    resp_data["dev_code"] = code
+                    resp_data["message"] = f"Новый код для теста: {code}"
+                self.send_json(resp_data)
             except Exception as e:
                 self.send_json({"error": f"Ошибка отправки: {str(e)}"}, status=500)
             return
@@ -262,8 +271,12 @@ class LifeOSCloudHandler(SimpleHTTPRequestHandler):
                     return
 
                 code = db.create_otp_code(email, 'password_reset')
-                mailer.send_password_reset_email(email, code)
-                self.send_json({"success": True, "message": "Код для сброса пароля отправлен на email"})
+                mail_res = mailer.send_password_reset_email(email, code)
+                resp_data = {"success": True, "message": "Код для сброса пароля отправлен на email"}
+                if mail_res.get("provider") == "dev_mode":
+                    resp_data["dev_code"] = code
+                    resp_data["message"] = f"Код сброса: {code} (Dev Mode)"
+                self.send_json(resp_data)
             except Exception as e:
                 self.send_json({"error": f"Ошибка сброса пароля: {str(e)}"}, status=500)
             return
