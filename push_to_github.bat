@@ -1,32 +1,36 @@
 @echo off
 chcp 65001 > nul
+title LifeOS Cloud - Push to GitHub
 echo ============================================================
-echo   Отправка LifeOS Cloud на GitHub
+echo   LifeOS Cloud -> GitHub
+echo   Репозиторий: https://github.com/santhez/lifeos-cloud.git
 echo ============================================================
 echo.
-set /p REPO_URL="Вставьте ссылку на репозиторий GitHub (например, https://github.com/ваш_логин/lifeos-cloud.git): "
-if "%REPO_URL%"=="" (
-    echo Ссылка не указана. Отмена.
-    pause
-    exit /b
-)
+cd /d "%~dp0"
 
 git remote remove origin 2>nul
-git remote add origin %REPO_URL%
+git remote add origin https://github.com/santhez/lifeos-cloud.git
 git branch -M main
-echo.
+
 echo Отправляем файлы в GitHub...
+echo (Если появится окно входа в браузере - подтвердите вход в аккаунт santhez)
+echo.
 git push -u origin main
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ============================================================
-    echo   УСПЕШНО! Проект загружен на GitHub.
-    echo   Теперь на Render.com подключите этот репозиторий в 2 клика.
+    echo   УСПЕШНО! Все файлы загружены в GitHub (santhez/lifeos-cloud).
+    echo   Теперь на Render.com выберите этот репозиторий и нажмите Deploy!
     echo ============================================================
 ) else (
     echo.
-    echo Ошибка при отправке. Проверьте права доступа или правильность ссылки.
+    echo ============================================================
+    echo   Ошибка при отправке (%ERRORLEVEL%).
+    echo   Если требуется токен, создайте Personal Access Token на GitHub
+    echo   (Settings -> Developer Settings -> Personal Access Tokens -> Tokens classic)
+    echo   с правами 'repo' и используйте его вместо пароля.
+    echo ============================================================
 )
 echo.
 pause

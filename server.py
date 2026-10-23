@@ -14,6 +14,7 @@ if hasattr(sys.stderr, 'reconfigure'):
     except Exception: pass
 
 import db
+import mailer
 
 PORT = int(os.environ.get("PORT", 8080))
 STATIC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -159,39 +160,158 @@ class LifeOSCloudHandler(SimpleHTTPRequestHandler):
         content_length = int(self.headers.get('Content-Length', 0))
         raw_body = self.rfile.read(content_length).decode('utf-8', errors='ignore') if content_length > 0 else ""
 
-        # 1. REGISTER
+        # 1. REGISTER (VIA EMAIL & 6-DIGIT OTP)
         if path == '/api/auth/register':
             try:
                 data = json.loads(raw_body)
-                username = data.get('username', '')
-                password = data.get('password', '')
-                display_name = data.get('display_name', '')
-                user = db.create_user(username, password, display_name)
-                token = db.create_session(user['id'])
-                self.send_json({"success": True, "token": token, "user": user})
+                email = data.get('email', '').strip().lower()
+                password = data.get('password', '').strip()
+                display_name = data.get('display_name', '').strip()
+
+                # Backward compatibility if username passed instead of email
+                if not email and data.get('username') and '@' in data.get('username'):
+                    email = data.get('username').strip().lower()
+
+                if not email:
+                    self.send_json({"error": "Укажите корректный адрес электронной почты"}, status=400)
+                    return
+
+                user = db.create_user_with_email(email, password, display_name)
+                code = db.create_otp_code(email, 'register_verify')
+                mailer.send_verification_email(email, code, display_name)
+
+                self.send_json({
+                    "success": True, 
+                    "step": "verify_required", 
+                    "email": email,
+                    "message": "Код подтверждения отправлен на ваш email"
+                })
             except ValueError as ve:
                 self.send_json({"error": str(ve)}, status=400)
             except Exception as e:
                 self.send_json({"error": f"Ошибка регистрации: {str(e)}"}, status=500)
             return
 
-        # 2. LOGIN
+        # 2. VERIFY 6-DIGIT CODE
+        elif path == '/api/auth/verify_code':
+            try:
+                data = json.loads(raw_body)
+                email = data.get('email', '').strip().lower()
+                code = data.get('code', '').strip()
+                action_type = data.get('action_type', 'register_verify').strip()
+
+                if not email or not code:
+                    self.send_json({"error": "Укажите email и 6-значный код"}, status=400)
+                    return
+
+                is_valid = db.verify_otp_code(email, code, action_type)
+                if not is_valid:
+                    self.send_json({"error": "Неверный или просроченный код (срок действия 15 мин)"}, status=400)
+                    return
+
+                if action_type == 'register_verify':
+                    db.mark_email_verified(email)
+                    user = db.get_user_by_email(email)
+                    if not user:
+                        self.send_json({"error": "Пользователь не найден"}, status=404)
+                        return
+                    token = db.create_session(user['id'])
+                    self.send_json({"success": True, "token": token, "user": user})
+                else:
+                    self.send_json({"success": True, "verified": True})
+            except Exception as e:
+                self.send_json({"error": f"Ошибка проверки кода: {str(e)}"}, status=500)
+            return
+
+        # 3. RESEND VERIFICATION CODE
+        elif path == '/api/auth/resend_code':
+            try:
+                data = json.loads(raw_body)
+                email = data.get('email', '').strip().lower()
+                action_type = data.get('action_type', 'register_verify').strip()
+
+                user = db.get_user_by_email(email)
+                if not user:
+                    self.send_json({"error": "Пользователь с таким email не найден"}, status=404)
+                    return
+
+                code = db.create_otp_code(email, action_type)
+                if action_type == 'register_verify':
+                    mailer.send_verification_email(email, code, user['display_name'])
+                else:
+                    mailer.send_password_reset_email(email, code)
+
+                self.send_json({"success": True, "message": "Новый код отправлен на почту"})
+            except Exception as e:
+                self.send_json({"error": f"Ошибка отправки: {str(e)}"}, status=500)
+            return
+
+        # 4. FORGOT PASSWORD (REQUEST RESET CODE)
+        elif path == '/api/auth/forgot_password':
+            try:
+                data = json.loads(raw_body)
+                email = data.get('email', '').strip().lower()
+
+                if not email or not db.is_valid_email(email):
+                    self.send_json({"error": "Укажите корректный email"}, status=400)
+                    return
+
+                user = db.get_user_by_email(email)
+                if not user:
+                    self.send_json({"error": "Аккаунт с таким email не найден"}, status=404)
+                    return
+
+                code = db.create_otp_code(email, 'password_reset')
+                mailer.send_password_reset_email(email, code)
+                self.send_json({"success": True, "message": "Код для сброса пароля отправлен на email"})
+            except Exception as e:
+                self.send_json({"error": f"Ошибка сброса пароля: {str(e)}"}, status=500)
+            return
+
+        # 5. RESET PASSWORD WITH CODE
+        elif path == '/api/auth/reset_password':
+            try:
+                data = json.loads(raw_body)
+                email = data.get('email', '').strip().lower()
+                code = data.get('code', '').strip()
+                new_password = data.get('new_password', '').strip()
+
+                if not email or not code or not new_password:
+                    self.send_json({"error": "Заполните все поля"}, status=400)
+                    return
+
+                is_valid = db.verify_otp_code(email, code, 'password_reset')
+                if not is_valid:
+                    self.send_json({"error": "Неверный или просроченный код подтверждения"}, status=400)
+                    return
+
+                db.reset_user_password(email, new_password)
+                user = db.get_user_by_email(email)
+                token = db.create_session(user['id'])
+                self.send_json({"success": True, "token": token, "user": user, "message": "Пароль успешно обновлен"})
+            except ValueError as ve:
+                self.send_json({"error": str(ve)}, status=400)
+            except Exception as e:
+                self.send_json({"error": f"Ошибка сброса: {str(e)}"}, status=500)
+            return
+
+        # 6. LOGIN (EMAIL OR USERNAME)
         elif path == '/api/auth/login':
             try:
                 data = json.loads(raw_body)
-                username = data.get('username', '')
+                identifier = data.get('email') or data.get('username') or data.get('login', '')
                 password = data.get('password', '')
-                user = db.authenticate_user(username, password)
+                user = db.authenticate_user(identifier, password)
                 if user:
                     token = db.create_session(user['id'])
                     self.send_json({"success": True, "token": token, "user": user})
                 else:
-                    self.send_json({"error": "Неверный логин или пароль"}, status=401)
+                    self.send_json({"error": "Неверный email/логин или пароль"}, status=401)
             except Exception as e:
                 self.send_json({"error": f"Ошибка авторизации: {str(e)}"}, status=500)
             return
 
-        # 3. LOGOUT
+        # 7. LOGOUT
         elif path == '/api/auth/logout':
             token = self.get_token()
             if token:
